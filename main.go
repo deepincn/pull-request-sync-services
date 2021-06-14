@@ -1,99 +1,46 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"net/http"
-	"os/exec"
+	"os"
 
-	"github.com/google/go-github/v35/github"
+	"github.com/colorful-fullstack/PRTools/config"
+	"github.com/colorful-fullstack/PRTools/github"
+	"github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v2"
 )
 
-// 克隆github的仓库，添加gerrit仓库，创建一个merge提交，提交到gerrit.
-// 数据库记录id的对应关系，当github分支更新时，重复该操作。
-// body : {
-//   repo,
-//   event
-// }
-
-// Manager struct is a manager
-type Manager struct {
-	event *github.PullRequestEvent
-}
-
-// Init pull request
-func (m *Manager) Init(event *github.PullRequestEvent) {
-	m.event = event
-}
-
-type Command struct {
-	Program  string
-	Args     []string
-	WorkPath string
-}
-
-// CloneRepo patch
-func (m *Manager) CloneRepo() error {
-	repoName := m.event.GetRepo().GetName()
-
-	// clone base
-	list := []Command{
-		{
-			Program:  "git",
-			Args:     []string{"clone", "ssh://ut000063@gerrit.uniontech.com:29418/" + repoName},
-			WorkPath: "/tmp/",
-		},
-		{
-			Program:  "git",
-			Args:     []string{"remote", "add", "github", "https://github.com/linuxdeepin/" + repoName},
-			WorkPath: "/tmp/" + repoName,
-		},
-		{
-			Program:  "git",
-			Args:     []string{"fetch", "--all", "--tags"},
-			WorkPath: "/tmp/" + repoName,
-		},
+func init() {
+	lvl, ok := os.LookupEnv("LOG_LEVEL")
+	// LOG_LEVEL not set, let's default to debug
+	if !ok {
+		lvl = "debug"
 	}
-
-	for _, command := range list {
-		cmd := exec.Cmd{
-			Dir:  command.WorkPath,
-			Path: command.Program,
-			Args: command.Args,
-		}
-
-		err := cmd.Run()
-
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// push gerrit
-
-// sync comment
-
-func initRepo(event *github.PullRequestEvent) {
-	repoManager := &Manager{}
-	repoManager.Init(event)
-}
-
-func webhookHandle(rw http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-	event := &github.PullRequestEvent{}
-	body, err := io.ReadAll(r.Body)
+	// parse string, this is built-in feature of logrus
+	ll, err := logrus.ParseLevel(lvl)
 	if err != nil {
-		fmt.Println(err)
-		return
+		ll = logrus.DebugLevel
 	}
-	json.Unmarshal([]byte(body), event)
-	go initRepo(event)
+	// set global log level
+	logrus.SetLevel(ll)
 }
 
 func main() {
-	http.HandleFunc("/", webhookHandle)
+	conf := new(config.Yaml)
+	yamlFile, err := ioutil.ReadFile("config.yaml")
+	if err != nil {
+		logrus.Infof("yamlFile.Get err #%v ", err)
+	}
+	err = yaml.Unmarshal([]byte(yamlFile), conf)
+	if err != nil {
+		logrus.Fatalf("Unmarshal: %v", err)
+	}
+
+	logrus.Debug(conf)
+
+	githubManager := github.New(conf)
+	http.HandleFunc("/", githubManager.WebhookHandle)
+	logrus.Fatal(http.ListenAndServe(fmt.Sprintf(":%v", 3002), nil))
 }
