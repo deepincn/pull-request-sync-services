@@ -91,7 +91,7 @@ func (m *Manager) fetch(repo *github.Repository, event *github.PullRequestEvent)
 }
 
 // checkout
-func (m *Manager) checkout(repo *github.Repository, event *github.PullRequestEvent) error {
+func (m *Manager) checkout(repo *github.Repository) error {
 	var list []*exec.Cmd
 	checkout := exec.Command("git", "checkout", "master")
 	checkout.Dir = m.conf.RepoDir + repo.GetName()
@@ -116,7 +116,14 @@ func (m *Manager) merge(repo *github.Repository, event *github.PullRequestEvent)
 	msg += "Log:\n"
 
 	// TODO: check change id in database
-	msg += "Change-Id: I" + generateChangeId() + "\n"
+	changeId, err := m.db.GetChangeId(event.GetNumber())
+
+	if err != nil {
+		changeId = generateChangeId()
+		m.db.SetChangeId(event.GetNumber(), changeId)
+	}
+
+	msg += "Change-Id: I" + changeId + "\n"
 
 	merge := exec.Command("git", "merge", strconv.Itoa(event.GetNumber()), "-m", msg)
 	merge.Dir = m.conf.RepoDir + repo.GetName()
@@ -131,8 +138,8 @@ func (m *Manager) merge(repo *github.Repository, event *github.PullRequestEvent)
 	return nil
 }
 
-// pullrequestHandler is
-func (m *Manager) pullrequestHandler(event *github.PullRequestEvent) {
+// pullRequestHandler is
+func (m *Manager) pullRequestHandler(event *github.PullRequestEvent) {
 	var err error
 	if err = m.clone(event.Repo); err != nil {
 		logrus.Errorf("clone: %v", err)
@@ -144,7 +151,7 @@ func (m *Manager) pullrequestHandler(event *github.PullRequestEvent) {
 		return
 	}
 
-	if err = m.checkout(event.Repo, event); err != nil {
+	if err = m.checkout(event.Repo); err != nil {
 		logrus.Errorf("checkout: %v", err)
 		return
 	}

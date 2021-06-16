@@ -1,6 +1,7 @@
 package github
 
 import (
+	"github.com/colorful-fullstack/PRTools/database"
 	"io/ioutil"
 	"net/http"
 
@@ -11,19 +12,20 @@ import (
 
 // Manager is github module manager
 type Manager struct {
-	conf *config.Yaml;
+	conf *config.Yaml
+	db   *database.DataBase
 }
 
 // New creates
-func New(conf *config.Yaml) *Manager {
+func New(conf *config.Yaml, db *database.DataBase) *Manager {
 	return &Manager{
 		conf: conf,
+		db:   db,
 	}
 }
 
 // WebhookHandle init
 func (m *Manager) WebhookHandle(rw http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
 	var event interface{}
 
 	payload, err := github.ValidatePayload(r, []byte(""))
@@ -38,12 +40,15 @@ func (m *Manager) WebhookHandle(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		body, _ := ioutil.ReadAll(r.Body)
 		logrus.Errorf("request body: %v", string(body))
 
 		rw.WriteHeader(400)
-		rw.Write([]byte(err.Error()))
+		result, err := rw.Write([]byte(err.Error()))
+		if err != nil {
+			logrus.Errorf("rw write: %v", result)
+		}
 		return
 	}
 
@@ -53,7 +58,7 @@ func (m *Manager) WebhookHandle(rw http.ResponseWriter, r *http.Request) {
 		break
 	case *github.PullRequestEvent:
 		logrus.Infof("PullRequestEvent: %v", *event.Number)
-		m.pullrequestHandler(event)
+		m.pullRequestHandler(event)
 		break
 	case *github.PushEvent:
 		logrus.Infof("PushEvent: %v", *event.PushID)

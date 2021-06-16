@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/colorful-fullstack/PRTools/database"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -39,8 +40,8 @@ func main() {
 	}
 
 	logrus.Debug(conf)
-
-	githubManager := github.New(conf)
+	db := database.NewDataBase(conf)
+	githubManager := github.New(conf, db)
 	http.HandleFunc("/", githubManager.WebhookHandle)
 	logrus.Fatal(http.ListenAndServe(fmt.Sprintf(":%v", 3002), nil))
 }
