@@ -46,20 +46,20 @@ func generateChangeId() string {
 }
 
 // initRepo
-func (m *Manager) clone(repo *github.Repository) error {
-	if _, err := os.Stat(m.conf.RepoDir + repo.GetName()); !os.IsNotExist(err) {
+func (this *PRTask) clone(repo *github.Repository) error {
+	if _, err := os.Stat(this.manager.conf.RepoDir + repo.GetName()); !os.IsNotExist(err) {
 		return nil
 	}
 
 	var list []*exec.Cmd
-	init := exec.Command("git", "clone", m.conf.Gerrit+repo.GetName())
-	init.Dir = m.conf.RepoDir
+	init := exec.Command("git", "clone", this.manager.conf.Gerrit+repo.GetName())
+	init.Dir = this.manager.conf.RepoDir
 
 	remote := exec.Command("git", "remote", "add", "github", "https://github.com/linuxdeepin/"+repo.GetName())
-	remote.Dir = m.conf.RepoDir + repo.GetName()
+	remote.Dir = this.manager.conf.RepoDir + repo.GetName()
 
 	fetch := exec.Command("git", "fetch", "--all", "--tags")
-	fetch.Dir = m.conf.RepoDir + repo.GetName()
+	fetch.Dir = this.manager.conf.RepoDir + repo.GetName()
 
 	list = append(list, init, remote, fetch)
 
@@ -74,10 +74,10 @@ func (m *Manager) clone(repo *github.Repository) error {
 }
 
 // fetch
-func (m *Manager) fetch(repo *github.Repository, event *github.PullRequestEvent) error {
+func (this *PRTask) fetch(repo *github.Repository, event *github.PullRequestEvent) error {
 	var list []*exec.Cmd
 	fetch := exec.Command("git", "fetch", "github", "pull/"+strconv.Itoa(event.GetNumber())+"/head:"+strconv.Itoa(event.GetNumber()))
-	fetch.Dir = m.conf.RepoDir + repo.GetName()
+	fetch.Dir = this.manager.conf.RepoDir + repo.GetName()
 
 	list = append(list, fetch)
 
@@ -91,10 +91,10 @@ func (m *Manager) fetch(repo *github.Repository, event *github.PullRequestEvent)
 }
 
 // checkout
-func (m *Manager) checkout(repo *github.Repository) error {
+func (this *PRTask) checkout(repo *github.Repository) error {
 	var list []*exec.Cmd
 	checkout := exec.Command("git", "checkout", "master")
-	checkout.Dir = m.conf.RepoDir + repo.GetName()
+	checkout.Dir = this.manager.conf.RepoDir + repo.GetName()
 	list = append(list, checkout)
 
 	for _, command := range list {
@@ -107,7 +107,7 @@ func (m *Manager) checkout(repo *github.Repository) error {
 }
 
 // merge
-func (m *Manager) merge(repo *github.Repository, event *github.PullRequestEvent) error {
+func (this *PRTask) merge(repo *github.Repository, event *github.PullRequestEvent) error {
 	var list []*exec.Cmd
 
 	var msg string
@@ -116,17 +116,17 @@ func (m *Manager) merge(repo *github.Repository, event *github.PullRequestEvent)
 	msg += "Log:\n"
 
 	// TODO: check change id in database
-	changeId, err := m.db.GetChangeId(event.GetNumber())
+	changeId, err := this.manager.db.GetChangeId(event.GetNumber())
 
 	if err != nil {
 		changeId = generateChangeId()
-		m.db.SetChangeId(event.GetNumber(), changeId)
+		this.manager.db.SetChangeId(event.GetNumber(), changeId)
 	}
 
 	msg += "Change-Id: I" + changeId + "\n"
 
 	merge := exec.Command("git", "merge", strconv.Itoa(event.GetNumber()), "-m", msg)
-	merge.Dir = m.conf.RepoDir + repo.GetName()
+	merge.Dir = this.manager.conf.RepoDir + repo.GetName()
 	list = append(list, merge)
 
 	for _, command := range list {
@@ -139,24 +139,24 @@ func (m *Manager) merge(repo *github.Repository, event *github.PullRequestEvent)
 }
 
 // pullRequestHandler is
-func (m *Manager) pullRequestHandler(event *github.PullRequestEvent) {
+func (this *PRTask) pullRequestHandler(event *github.PullRequestEvent) {
 	var err error
-	if err = m.clone(event.Repo); err != nil {
+	if err = this.clone(event.Repo); err != nil {
 		logrus.Errorf("clone: %v", err)
 		return
 	}
 
-	if err = m.fetch(event.Repo, event); err != nil {
+	if err = this.fetch(event.Repo, event); err != nil {
 		logrus.Errorf("fetch: %v", err)
 		return
 	}
 
-	if err = m.checkout(event.Repo); err != nil {
+	if err = this.checkout(event.Repo); err != nil {
 		logrus.Errorf("checkout: %v", err)
 		return
 	}
 
-	if err = m.merge(event.Repo, event); err != nil {
+	if err = this.merge(event.Repo, event); err != nil {
 		logrus.Errorf("merge: %v", err)
 		return
 	}
