@@ -24,5 +24,20 @@ use the sqlite:
 ```
 
 ```text
+gerrit: ''
+repo_dir: './tmp/'
+database:
+  - type: json
+  - filename: database.json
+auth:
+  github:
+    - token: ''
+  gerrit:
+    - token: ''
+```
 
+## Test
+
+```shell
+curl -X POST --data "@./pr.json" http://127.0.0.1:3002/ -H "X-GitHub-Event: pull_request" -H "content-type: application/json"
 ```
