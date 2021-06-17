@@ -1,7 +1,6 @@
 package github
 
 import (
-	"fmt"
 	"github.com/colorful-fullstack/PRTools/config"
 	"github.com/colorful-fullstack/PRTools/database"
 	"github.com/google/go-github/v35/github"
@@ -61,19 +60,26 @@ func (w *Worker) Start() {
 				// 这里查找一下项目对应的锁，目的是按队列处理
 				TaskMutex.Lock()
 				mutex, ok := TaskMutexMap[job.Task.Name()]
+				if ok {
+					logrus.Debug("found running task")
+				}
 				if !ok {
+					logrus.Debug("not mutex, add a new mutex")
 					mutex = sync.Mutex{}
 					TaskMutexMap[job.Task.Name()] = mutex
 				}
+				logrus.Debugf("task %v, try locking...", job.Task.Name())
 				mutex.Lock()
+				logrus.Debugf("task %v is locking...", job.Task.Name())
 				TaskMutex.Unlock()
 
 				err := job.Task.DoTask()
 				if err != nil {
-					fmt.Println("任务执行失败")
+					logrus.Errorf("task %v failed.", job.Task.Name())
 				}
 
 				mutex.Unlock()
+				logrus.Debug("task finished, unlocking...")
 			// 接收退出的任务, 停止任务
 			case <-w.quit:
 				return
