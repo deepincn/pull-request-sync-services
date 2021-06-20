@@ -8,4 +8,12 @@ type Yaml struct {
 		Type     string `yaml:"type"`
 		FileName string `yaml:"filename"`
 	}
+	auth struct {
+		github struct {
+			token string `yaml:"token"`
+		}
+		gerrit struct {
+			token string `yaml:"token"`
+		}
+	}
 }

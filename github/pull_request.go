@@ -45,6 +45,20 @@ func generateChangeId() string {
 	return output.String()
 }
 
+type PRTask struct {
+	event *github.PullRequestEvent
+	manager *Manager
+}
+
+func (t *PRTask) Name() string {
+	return t.event.GetRepo().GetName()
+}
+
+func (t *PRTask) DoTask() error {
+	t.pullRequestHandler(t.event)
+	return nil
+}
+
 // initRepo
 func (this *PRTask) clone(repo *github.Repository) error {
 	if _, err := os.Stat(this.manager.conf.RepoDir + repo.GetName()); !os.IsNotExist(err) {
