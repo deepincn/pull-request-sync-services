@@ -2,6 +2,7 @@ package github
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"os/exec"
 	"strconv"
@@ -33,6 +34,15 @@ import (
 	git review master -r origin
 */
 
+/*
+1. 用户fork了repo，并创建了pr，请求合并分支里的提交
+2. gerrit只接受单一commit，但是允许提交merge提交
+3. 同步工具会创建以pr号为分支名的本地分支
+4. 同步工具拉去对应的pull/head,并创建merge提交，根据规范填充commit msg
+5. 同步工具review提交
+6. 当评论提交到gerrit上后，gerrit插件应该提供review时的分支，用于确定github上的pr号
+ */
+
 func generateChangeId() string {
 	output := &bytes.Buffer{}
 	c1 := exec.Command("whoami; hostname; date;")
@@ -46,7 +56,7 @@ func generateChangeId() string {
 }
 
 type PRTask struct {
-	event *github.PullRequestEvent
+	event   *github.PullRequestEvent
 	manager *Manager
 }
 
@@ -128,6 +138,7 @@ func (this *PRTask) merge(repo *github.Repository, event *github.PullRequestEven
 	msg += "feat: " + event.PullRequest.GetTitle() + "\n\n"
 	msg += event.PullRequest.GetBody() + "\n\n"
 	msg += "Log:\n"
+	msg += fmt.Sprintf("Issue: %s\n", event.PullRequest.GetURL()) // 记录提交来源，如果只有一个提交，也应当创建合并提交
 
 	// TODO: check change id in database
 	changeId, err := this.manager.db.GetChangeId(event.GetNumber())
@@ -152,26 +163,44 @@ func (this *PRTask) merge(repo *github.Repository, event *github.PullRequestEven
 	return nil
 }
 
+func (this *PRTask) review(repo *github.Repository, event *github.PullRequestEvent) error {
+	review := exec.Command("git", "review", strconv.Itoa(event.GetNumber()))
+	review.Dir = this.manager.conf.RepoDir + repo.GetName()
+	err := review.Run()
+
+	return err
+}
+
 // pullRequestHandler is
-func (this *PRTask) pullRequestHandler(event *github.PullRequestEvent) {
+func (this *PRTask) pullRequestHandler(event *github.PullRequestEvent) error {
 	var err error
-	if err = this.clone(event.Repo); err != nil {
-		logrus.Errorf("clone: %v", err)
-		return
+	for {
+		if err = this.clone(event.Repo); err != nil {
+			logrus.Errorf("clone: %v", err)
+			break
+		}
+
+		if err = this.fetch(event.Repo, event); err != nil {
+			logrus.Errorf("fetch: %v", err)
+			break
+		}
+
+		if err = this.checkout(event.Repo); err != nil {
+			logrus.Errorf("checkout: %v", err)
+			break
+		}
+
+		if err = this.merge(event.Repo, event); err != nil {
+			logrus.Errorf("merge: %v", err)
+			break
+		}
+
+		if err = this.review(event.Repo, event); err != nil {
+			logrus.Errorf("review: %v", err)
+			break
+		}
+		break
 	}
 
-	if err = this.fetch(event.Repo, event); err != nil {
-		logrus.Errorf("fetch: %v", err)
-		return
-	}
-
-	if err = this.checkout(event.Repo); err != nil {
-		logrus.Errorf("checkout: %v", err)
-		return
-	}
-
-	if err = this.merge(event.Repo, event); err != nil {
-		logrus.Errorf("merge: %v", err)
-		return
-	}
+	return err
 }
