@@ -12,9 +12,10 @@ func (t *CommentTask) Name() string {
 }
 
 func (t *CommentTask) DoTask() error {
-	return nil
+	return t.pushComment()
 }
 
-func (c *CommentTask) pushComment() {
+func (c *CommentTask) pushComment() error {
 
+	return nil
 }

@@ -55,6 +55,9 @@ func (m *Manager) WebhookHandle(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	switch event := event.(type) {
+	case *github.PingEvent:
+
+		break
 	case *github.IssueEvent:
 		logrus.Infof("IssueEvent: %v", *event.ID)
 		break

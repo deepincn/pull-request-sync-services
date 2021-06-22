@@ -71,19 +71,19 @@ func (t *PRTask) DoTask() error {
 
 // initRepo
 func (this *PRTask) clone(repo *github.Repository) error {
-	if _, err := os.Stat(this.manager.conf.RepoDir + repo.GetName()); !os.IsNotExist(err) {
+	if _, err := os.Stat(*this.manager.conf.RepoDir + repo.GetName()); !os.IsNotExist(err) {
 		return nil
 	}
 
 	var list []*exec.Cmd
-	init := exec.Command("git", "clone", this.manager.conf.Gerrit+repo.GetName())
-	init.Dir = this.manager.conf.RepoDir
+	init := exec.Command("git", "clone", *this.manager.conf.Gerrit+repo.GetName())
+	init.Dir = *this.manager.conf.RepoDir
 
 	remote := exec.Command("git", "remote", "add", "github", "https://github.com/linuxdeepin/"+repo.GetName())
-	remote.Dir = this.manager.conf.RepoDir + repo.GetName()
+	remote.Dir = *this.manager.conf.RepoDir + repo.GetName()
 
 	fetch := exec.Command("git", "fetch", "--all", "--tags")
-	fetch.Dir = this.manager.conf.RepoDir + repo.GetName()
+	fetch.Dir = *this.manager.conf.RepoDir + repo.GetName()
 
 	list = append(list, init, remote, fetch)
 
@@ -101,7 +101,7 @@ func (this *PRTask) clone(repo *github.Repository) error {
 func (this *PRTask) fetch(repo *github.Repository, event *github.PullRequestEvent) error {
 	var list []*exec.Cmd
 	fetch := exec.Command("git", "fetch", "github", "pull/"+strconv.Itoa(event.GetNumber())+"/head:"+strconv.Itoa(event.GetNumber()))
-	fetch.Dir = this.manager.conf.RepoDir + repo.GetName()
+	fetch.Dir = *this.manager.conf.RepoDir + repo.GetName()
 
 	list = append(list, fetch)
 
@@ -118,7 +118,7 @@ func (this *PRTask) fetch(repo *github.Repository, event *github.PullRequestEven
 func (this *PRTask) checkout(repo *github.Repository) error {
 	var list []*exec.Cmd
 	checkout := exec.Command("git", "checkout", "master")
-	checkout.Dir = this.manager.conf.RepoDir + repo.GetName()
+	checkout.Dir = *this.manager.conf.RepoDir + repo.GetName()
 	list = append(list, checkout)
 
 	for _, command := range list {
@@ -151,7 +151,7 @@ func (this *PRTask) merge(repo *github.Repository, event *github.PullRequestEven
 	msg += "Change-Id: I" + changeId + "\n"
 
 	merge := exec.Command("git", "merge", strconv.Itoa(event.GetNumber()), "-m", msg)
-	merge.Dir = this.manager.conf.RepoDir + repo.GetName()
+	merge.Dir = *this.manager.conf.RepoDir + repo.GetName()
 	list = append(list, merge)
 
 	for _, command := range list {
@@ -165,7 +165,7 @@ func (this *PRTask) merge(repo *github.Repository, event *github.PullRequestEven
 
 func (this *PRTask) review(repo *github.Repository, event *github.PullRequestEvent) error {
 	review := exec.Command("git", "review", strconv.Itoa(event.GetNumber()))
-	review.Dir = this.manager.conf.RepoDir + repo.GetName()
+	review.Dir = *this.manager.conf.RepoDir + repo.GetName()
 	err := review.Run()
 
 	return err

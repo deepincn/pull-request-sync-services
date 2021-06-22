@@ -39,7 +39,6 @@ func main() {
 		logrus.Fatalf("Unmarshal: %v", err)
 	}
 
-	logrus.Debug(conf)
 	db := database.NewDataBase(conf)
 	githubManager := github.New(conf, db)
 	http.HandleFunc("/", githubManager.WebhookHandle)
