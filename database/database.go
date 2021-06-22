@@ -3,52 +3,63 @@ package database
 import (
 	"errors"
 	"github.com/colorful-fullstack/PRTools/config"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
-type PullRequest struct {
-	Number   *int    `json:"Number"`
-	ChangeId *string `json:"ChangeId"`
+type Repo struct {
+	Name     string
+	CloneUrl string
+}
+
+type Head struct {
+	Ref   string
+	Label string
+}
+
+type PullRequestModel struct {
+	gorm.Model
+	Number   int
+	ChangeId string
+	Repo     Repo `gorm:"embedded;embeddedPrefix:Repo_"`
+	Head     Head `gorm:"embedded;embeddedPrefix:Head_"`
 }
 
 type DataBase struct {
-	config *config.Yaml
-	result struct {
-		pullRequest []PullRequest
-	}
+	db *gorm.DB
 }
 
-func NewDataBase(config *config.Yaml) *DataBase {
+func NewDataBase(yaml *config.Yaml) *DataBase {
+	db, err := gorm.Open(sqlite.Open(*yaml.Database.FileName), &gorm.Config{})
+	if err != nil {
+		panic("failed to connect database")
+	}
+
+	db.AutoMigrate(&PullRequestModel{})
+
 	return &DataBase{
-		config: config,
+		db: db,
 	}
 }
 
-func (m PullRequest) GetNumber() int {
-	return *m.Number
+func (db *DataBase) Create(record *PullRequestModel) error {
+	result := db.db.Create(record)
+
+	return result.Error
 }
 
-func (m PullRequest) GetChangeId() string {
-	return *m.ChangeId
-}
+func (db *DataBase) Find(repo string, number int) (*PullRequestModel, error) {
+	var value PullRequestModel
+	result := db.db.Limit(1).Where(&PullRequestModel{
+		Number: number,
+		Repo: Repo{
+			Name: repo,
+		},
+	}).First(&value)
 
-func (m DataBase) SetChangeId(number int, changeId string) bool {
-	for _, v := range m.result.pullRequest {
-		if v.GetNumber() == number {
-			v.ChangeId = &changeId
-			break
-		}
+	if result.RowsAffected == 0 {
+		return &PullRequestModel{}, errors.New("No record")
 	}
 
-	// TODO: save
-
-	return true
-}
-
-func (m DataBase) GetChangeId(number int) (string, error) {
-	for _, v := range m.result.pullRequest {
-		if v.GetNumber() == number {
-			return v.GetChangeId(), nil
-		}
-	}
-	return "", errors.New("ChangeId not found")
+	return &value, nil
 }

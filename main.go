@@ -1,14 +1,15 @@
 package main
 
 import (
-	"fmt"
 	"github.com/colorful-fullstack/PRTools/database"
 	"io/ioutil"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/colorful-fullstack/PRTools/config"
 	"github.com/colorful-fullstack/PRTools/github"
+	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 )
@@ -40,7 +41,19 @@ func main() {
 	}
 
 	db := database.NewDataBase(conf)
+
 	githubManager := github.New(conf, db)
-	http.HandleFunc("/", githubManager.WebhookHandle)
-	logrus.Fatal(http.ListenAndServe(fmt.Sprintf(":%v", 3002), nil))
+
+	router := gin.Default()
+	router.POST("/merge/:repo/:number", githubManager.MergeHandle)
+	router.POST("/webhook/github", githubManager.WebhookHandle)
+	srv := &http.Server{
+		Handler:      router,
+		Addr:         "127.0.0.1:3002",
+		// Good practice: enforce timeouts for servers you create!
+		WriteTimeout: 15 * time.Second,
+		ReadTimeout:  15 * time.Second,
+	}
+
+	logrus.Fatal(srv.ListenAndServe())
 }
