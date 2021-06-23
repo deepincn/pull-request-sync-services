@@ -1,6 +1,7 @@
 package github
 
 import (
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"os/exec"
@@ -31,12 +32,21 @@ func (m *Manager) MergeHandle(c *gin.Context) {
 	}
 
 	// add remote
-	addRemote := exec.Command("git", "remote", "add", result.Repo.Name, result.Repo.CloneUrl)
+	addRemote := exec.Command("git",
+		"remote",
+		"add",
+		_number,
+		fmt.Sprintf("https://%s:%s@github.com/%s/%s",
+			*m.conf.Auth.Github.User,
+			*m.conf.Auth.Github.Password,
+			result.Sender.Login,
+			repo,
+			))
 	addRemote.Dir = *m.conf.RepoDir + repo
 	runSingleCmd(addRemote)
 
 	// fetch remote
-	refresh := exec.Command("git", "fetch", result.Repo.Name)
+	refresh := exec.Command("git", "fetch", _number)
 	refresh.Dir = *m.conf.RepoDir + repo
 	runSingleCmd(refresh)
 
@@ -47,7 +57,12 @@ func (m *Manager) MergeHandle(c *gin.Context) {
 	runSingleCmd(refresh)
 
 	// push remote
-	push := exec.Command("git", "push", result.Repo.Name, "HEAD:" + result.Head.Ref, "-f")
+	push := exec.Command("git", "push", _number, "HEAD:" + result.Head.Ref, "-f")
 	push.Dir = *m.conf.RepoDir + repo
 	runSingleCmd(push)
+
+	// remove remote
+	remove := exec.Command("git", "remote", "remove", _number)
+	remove.Dir = *m.conf.RepoDir + repo
+	runSingleCmd(remove)
 }

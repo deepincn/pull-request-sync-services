@@ -184,6 +184,9 @@ func (this *PRTask) merge(repo *github.Repository, event *github.PullRequestEven
 				Label: event.PullRequest.Head.GetLabel(),
 				Ref: event.PullRequest.Head.GetRef(),
 			},
+			Sender: database.Sender{
+				Login: event.Sender.GetLogin(),
+			},
 		})
 		if err != nil {
 			return err

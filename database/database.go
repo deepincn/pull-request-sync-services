@@ -17,12 +17,17 @@ type Head struct {
 	Label string
 }
 
+type Sender struct {
+	Login string
+}
+
 type PullRequestModel struct {
 	gorm.Model
 	Number   int
 	ChangeId string
-	Repo     Repo `gorm:"embedded;embeddedPrefix:Repo_"`
-	Head     Head `gorm:"embedded;embeddedPrefix:Head_"`
+	Repo     Repo   `gorm:"embedded;embeddedPrefix:Repo_"`
+	Head     Head   `gorm:"embedded;embeddedPrefix:Head_"`
+	Sender   Sender `gorm:"embedded;embeddedPrefix:Sender_"`
 }
 
 type DataBase struct {
