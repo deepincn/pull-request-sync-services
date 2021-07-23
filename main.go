@@ -1,11 +1,13 @@
 package main
 
 import (
-	"github.com/colorful-fullstack/PRTools/database"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/colorful-fullstack/PRTools/database"
+	"github.com/colorful-fullstack/PRTools/service"
 
 	"github.com/colorful-fullstack/PRTools/config"
 	"github.com/colorful-fullstack/PRTools/github"
@@ -39,7 +41,9 @@ func main() {
 	if err != nil {
 		logrus.Fatalf("Unmarshal: %v", err)
 	}
-
+	service := service.NewService(conf)
+	service.RefreshData()
+	return
 	db := database.NewDataBase(conf)
 
 	githubManager := github.New(conf, db)
@@ -48,8 +52,8 @@ func main() {
 	router.POST("/merge/:repo/:number", githubManager.MergeHandle)
 	router.POST("/webhook/github", githubManager.WebhookHandle)
 	srv := &http.Server{
-		Handler:      router,
-		Addr:         "127.0.0.1:3002",
+		Handler: router,
+		Addr:    "127.0.0.1:3002",
 		// Good practice: enforce timeouts for servers you create!
 		WriteTimeout: 15 * time.Second,
 		ReadTimeout:  15 * time.Second,
