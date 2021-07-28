@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/colorful-fullstack/PRTools/database"
-	"github.com/colorful-fullstack/PRTools/service"
 
 	"github.com/colorful-fullstack/PRTools/config"
 	"github.com/colorful-fullstack/PRTools/github"
@@ -41,9 +40,9 @@ func main() {
 	if err != nil {
 		logrus.Fatalf("Unmarshal: %v", err)
 	}
-	service := service.NewService(conf)
-	service.RefreshData()
-	return
+	// service := service.NewService(conf)
+	// service.RefreshData()
+	// return
 	db := database.NewDataBase(conf)
 
 	githubManager := github.New(conf, db)

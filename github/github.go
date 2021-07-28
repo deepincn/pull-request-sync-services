@@ -1,8 +1,10 @@
 package github
 
 import (
-	"github.com/gin-gonic/gin"
+	"fmt"
 	"io/ioutil"
+
+	"github.com/gin-gonic/gin"
 
 	"github.com/colorful-fullstack/PRTools/Controller"
 	"github.com/colorful-fullstack/PRTools/config"
@@ -66,6 +68,7 @@ func (m *Manager) WebhookHandle(c *gin.Context) {
 			task := &PRTask {
 				event: event,
 				manager: m,
+				diffFile: fmt.Sprintf("/tmp/#%v.#%v.diff", event.Repo.GetName(), event.GetNumber()),
 			}
 			*m.taskChannel <- Controller.Job {
 				Task: task,

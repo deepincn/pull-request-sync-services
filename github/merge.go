@@ -2,34 +2,33 @@ package github
 
 import (
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/sirupsen/logrus"
 	"os/exec"
 	"strconv"
+
+	"github.com/colorful-fullstack/PRTools/Controller"
+	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 )
 
-/*
-由于gerrit不支持多个commit提交，所以github模块会在gerrit上产生一个合并压缩的提交，
-为了在合并时让github上的状态能正确，例如正确显示合并的状态，需要在gerrit上合并的时候，先
-调用本系统的合并，将合并推送到作者的pr分支，当gerrit上合并以后，同步到github上时即可自动合并。
- */
+type PushTask struct {
+	manager *Manager
+	number  int
+	repo    string
+}
 
-func (m *Manager) MergeHandle(c *gin.Context) {
-	repo := c.Param("repo")
-	_number := c.Param("number")
-	number, err := strconv.Atoi(_number)
+func (t *PushTask) Name() string {
+	return t.repo
+}
 
-	if err != nil {
-		logrus.Error("number not a int")
-		return
-	}
-
-	result, err := m.db.Find(repo, number)
+func (t *PushTask) DoTask() error {
+	result, err := t.manager.db.Find(t.repo, t.number)
 
 	if err != nil {
 		logrus.Error(err)
-		return
+		return err
 	}
+
+	_number := fmt.Sprintf("%v", t.number)
 
 	// add remote
 	addRemote := exec.Command("git",
@@ -37,32 +36,47 @@ func (m *Manager) MergeHandle(c *gin.Context) {
 		"add",
 		_number,
 		fmt.Sprintf("https://%s:%s@github.com/%s/%s",
-			*m.conf.Auth.Github.User,
-			*m.conf.Auth.Github.Password,
+			*t.manager.conf.Auth.Github.User,
+			*t.manager.conf.Auth.Github.Password,
 			result.Sender.Login,
-			repo,
-			))
-	addRemote.Dir = *m.conf.RepoDir + repo
-	runSingleCmd(addRemote)
+			t.repo,
+		))
+	addRemote.Dir = *t.manager.conf.RepoDir + t.repo
 
 	// fetch remote
 	refresh := exec.Command("git", "fetch", _number)
-	refresh.Dir = *m.conf.RepoDir + repo
-	runSingleCmd(refresh)
+	refresh.Dir = *t.manager.conf.RepoDir + t.repo
 
 	// switch branch
 	// 切换到sender的分支
-	switchBranch := exec.Command("git", "checkout", "-b", "tmp_" + _number, result.Head.Label)
-	switchBranch.Dir = *m.conf.RepoDir + repo
-	runSingleCmd(refresh)
+	switchBranch := exec.Command("git", "checkout", "-b", "tmp_"+_number, result.Head.Label)
+	switchBranch.Dir = *t.manager.conf.RepoDir + t.repo
 
 	// push remote
-	push := exec.Command("git", "push", _number, "HEAD:" + result.Head.Ref, "-f")
-	push.Dir = *m.conf.RepoDir + repo
-	runSingleCmd(push)
+	push := exec.Command("git", "push", _number, "HEAD:"+result.Head.Ref, "-f")
+	push.Dir = *t.manager.conf.RepoDir + t.repo
 
 	// remove remote
 	remove := exec.Command("git", "remote", "remove", _number)
-	remove.Dir = *m.conf.RepoDir + repo
-	runSingleCmd(remove)
+	remove.Dir = *t.manager.conf.RepoDir + t.repo
+
+	var list []*exec.Cmd
+	list = append(list, addRemote, refresh, switchBranch, push, remove)
+	return runCmdList(list)
+}
+
+func (m *Manager) MergeHandle(c *gin.Context) {
+	number, err := strconv.Atoi(c.Param("number"))
+	if err != nil {
+		logrus.Error("number not a int")
+		return
+	}
+	task := &PushTask{
+		manager: m,
+		repo:    c.Param("repo"),
+		number:  number,
+	}
+	*m.taskChannel <- Controller.Job{
+		Task: task,
+	}
 }
