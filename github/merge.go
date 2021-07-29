@@ -56,12 +56,15 @@ func (t *PushTask) DoTask() error {
 	push := exec.Command("git", "push", _number, "HEAD:"+result.Head.Ref, "-f")
 	push.Dir = *t.manager.conf.RepoDir + t.repo
 
+	reset := exec.Command("git", "push", "github", "master", "-f")
+	reset.Dir = *t.manager.conf.RepoDir + t.repo
+
 	// remove remote
 	remove := exec.Command("git", "remote", "remove", _number)
 	remove.Dir = *t.manager.conf.RepoDir + t.repo
 
 	var list []*exec.Cmd
-	list = append(list, addRemote, refresh, switchBranch, push, remove)
+	list = append(list, addRemote, refresh, switchBranch, push, reset, remove)
 	return runCmdList(list)
 }
 
