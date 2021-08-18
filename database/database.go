@@ -2,6 +2,7 @@ package database
 
 import (
 	"errors"
+
 	"github.com/colorful-fullstack/PRTools/config"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -21,6 +22,10 @@ type Sender struct {
 	Login string
 }
 
+type Base struct {
+	Sha string
+}
+
 type PullRequestModel struct {
 	gorm.Model
 	Number   int
@@ -28,6 +33,7 @@ type PullRequestModel struct {
 	Repo     Repo   `gorm:"embedded;embeddedPrefix:Repo_"`
 	Head     Head   `gorm:"embedded;embeddedPrefix:Head_"`
 	Sender   Sender `gorm:"embedded;embeddedPrefix:Sender_"`
+	Base     Base   `gorm:"embedded;embeddedPrefix:Base_"`
 }
 
 type DataBase struct {

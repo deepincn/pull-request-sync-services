@@ -2,16 +2,12 @@ package github
 
 import (
 	"bytes"
-	"context"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"os/exec"
 	"strconv"
 
 	"github.com/colorful-fullstack/PRTools/database"
-	"golang.org/x/oauth2"
 
 	"github.com/google/go-github/v35/github"
 	"github.com/sirupsen/logrus"
@@ -49,29 +45,9 @@ import (
 6. 当评论提交到gerrit上后，gerrit插件应该提供review时的分支，用于确定github上的pr号
 */
 
-func DownloadFile(filepath string, url string) error {
-	// Get the data
-	resp, err := http.Get(url)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	// Create the file
-	out, err := os.Create(filepath)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-
-	// Write the body to file
-	_, err = io.Copy(out, resp.Body)
-	return err
-}
-
 func generateChangeId() string {
 	output := &bytes.Buffer{}
-	c1 := exec.Command("whoami; hostname; date;")
+	c1 := exec.Command("date")
 	c2 := exec.Command("git", "hash-object", "--stdin")
 	c2.Stdin, _ = c1.StdoutPipe()
 	c2.Stdout = output
@@ -123,19 +99,6 @@ func runCmdList(list []*exec.Cmd) error {
 	return nil
 }
 
-func (this *PRTask) downloadDiff() error {
-	ctx := context.Background()
-	ts := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: *this.manager.conf.Auth.Github.Token},
-	)
-	client := github.NewClient(oauth2.NewClient(ctx, ts))
-	pr, _, err := client.PullRequests.Get(ctx, "linuxdeepin", this.event.Repo.GetName(), this.event.GetNumber())
-	if err != nil {
-		return err
-	}
-	return DownloadFile(this.diffFile, pr.GetDiffURL())
-}
-
 // initRepo
 func (this *PRTask) clone() error {
 	if _, err := os.Stat(*this.manager.conf.RepoDir + this.event.Repo.GetName()); !os.IsNotExist(err) {
@@ -157,10 +120,8 @@ func (this *PRTask) clone() error {
 	return runCmdList(list)
 }
 
-// fetch
-func (this *PRTask) fetch() error {
-	// var list []*exec.Cmd
-
+// reset
+func (this *PRTask) reset() error {
 	master := exec.Command("git", "checkout", "master", "-f")
 	master.Dir = *this.manager.conf.RepoDir + this.event.Repo.GetName()
 
@@ -168,16 +129,61 @@ func (this *PRTask) fetch() error {
 		return err
 	}
 
-	// e.g. git branch -D dev_1
+	// e.g. git branch -D 387 patch_387
+	// 删除本地的pr对应分支
+	var number = strconv.Itoa(this.event.GetNumber())
 	reset := exec.Command("git", "branch", "-D", fmt.Sprintf("%v",
-		strconv.Itoa(this.event.GetNumber())))
+		number,
+	))
 	reset.Dir = *this.manager.conf.RepoDir + this.event.Repo.GetName()
 
-	if err := runSingleCmd(reset); err != nil {
+	return runSingleCmd(reset)
+}
+
+// rebase current branch
+func (this *PRTask) rebase() error {
+	rebase := exec.Command("git", "rebase", "master")
+	rebase.Dir = *this.manager.conf.RepoDir + this.event.Repo.GetName()
+	if err := runSingleCmd(rebase); err != nil {
+		restore := exec.Command("git", "rebase", "--abort")
+		restore.Dir = *this.manager.conf.RepoDir + this.event.Repo.GetName()
+		runSingleCmd(restore)
 		return err
 	}
 
 	return nil
+}
+
+// fetch
+func (this *PRTask) fetch() error {
+	this.reset()
+
+	var number = strconv.Itoa(this.event.GetNumber())
+
+	// 下载最新的分支
+	fetch := exec.Command("git", "fetch", "github", fmt.Sprintf("pull/%v/head:%v",
+		number,
+		number,
+	))
+	fetch.Dir = *this.manager.conf.RepoDir + this.event.Repo.GetName()
+
+	if err := runSingleCmd(fetch); err != nil {
+		return err
+	}
+
+	checkout2pr := exec.Command("git", "checkout", number)
+	checkout2pr.Dir = *this.manager.conf.RepoDir + this.event.Repo.GetName()
+
+	runSingleCmd(checkout2pr)
+
+	if err := this.rebase(); err != nil {
+		return err
+	}
+
+	diff := exec.Command("bash", "-c", fmt.Sprintf("git diff %v > %v", this.event.PullRequest.Base.GetSHA(), this.diffFile))
+	diff.Dir = *this.manager.conf.RepoDir + this.event.Repo.GetName()
+
+	return runSingleCmd(diff)
 }
 
 // checkout
@@ -186,9 +192,17 @@ func (this *PRTask) checkout() error {
 	master := exec.Command("git", "checkout", "master", "-f")
 	master.Dir = *this.manager.conf.RepoDir + this.event.Repo.GetName()
 
-	checkout := exec.Command("git", "checkout", "-B", strconv.Itoa(this.event.GetNumber()))
+	// 创建一个对应pr的patch分支
+	reset := exec.Command("git", "branch", "-D", fmt.Sprintf("patch_%v",
+		strconv.Itoa(this.event.GetNumber()),
+	))
+	reset.Dir = *this.manager.conf.RepoDir + this.event.Repo.GetName()
+
+	checkout := exec.Command("git", "checkout", "-b", fmt.Sprintf("patch_%v",
+		strconv.Itoa(this.event.GetNumber()),
+	))
 	checkout.Dir = *this.manager.conf.RepoDir + this.event.Repo.GetName()
-	list = append(list, master, checkout)
+	list = append(list, master, reset, checkout)
 
 	return runCmdList(list)
 }
@@ -222,6 +236,9 @@ func (this *PRTask) patch() error {
 			Sender: database.Sender{
 				Login: this.event.Sender.GetLogin(),
 			},
+			Base: database.Base{
+				Sha: this.event.PullRequest.Base.GetSHA(),
+			},
 		})
 		if err != nil {
 			return err
@@ -240,7 +257,10 @@ func (this *PRTask) patch() error {
 	add := exec.Command("git", "add", ".")
 	add.Dir = *this.manager.conf.RepoDir + this.event.Repo.GetName()
 
-	commit := exec.Command("git", "commit", "-m", msg)
+	commit := exec.Command("git", "commit", "-m", msg, fmt.Sprintf("--author=\"%v %v\"",
+		this.event.PullRequest.User.GetName(),
+		this.event.PullRequest.User.GetEmail(),
+	))
 	commit.Dir = *this.manager.conf.RepoDir + this.event.Repo.GetName()
 
 	list = append(list, patch, add, commit)
@@ -265,10 +285,6 @@ func (this *PRTask) review() error {
 func (this *PRTask) pullRequestHandler() error {
 	var err error
 	for {
-		if err = this.downloadDiff(); err != nil {
-			logrus.Errorf("download diff: %v", err)
-			break
-		}
 		if err = this.clone(); err != nil {
 			logrus.Errorf("clone: %v", err)
 			break
@@ -286,13 +302,13 @@ func (this *PRTask) pullRequestHandler() error {
 
 		if err = this.patch(); err != nil {
 			logrus.Errorf("patch: %v", err)
-			logrus.Errorf("reset commit: %v", this.fetch())
+			logrus.Errorf("reset commit: %v", this.reset())
 			break
 		}
 
 		if err = this.review(); err != nil {
 			logrus.Errorf("review: %v", err)
-			logrus.Errorf("reset commit: %v", this.fetch())
+			logrus.Errorf("reset commit: %v", this.reset())
 			break
 		}
 		break
