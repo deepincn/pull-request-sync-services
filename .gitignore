@@ -18,3 +18,4 @@ config.yaml
 .idea/
 .vscode/
 *.db
+pull-request-sync-services
