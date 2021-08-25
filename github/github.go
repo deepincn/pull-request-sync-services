@@ -6,11 +6,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/colorful-fullstack/PRTools/Controller"
-	"github.com/colorful-fullstack/PRTools/config"
-	"github.com/colorful-fullstack/PRTools/database"
 	"github.com/google/go-github/v35/github"
 	"github.com/sirupsen/logrus"
+	"gitlabwh.uniontech.com/zhangdingyuan/pull-request-sync-services/Controller"
+	"gitlabwh.uniontech.com/zhangdingyuan/pull-request-sync-services/config"
+	"gitlabwh.uniontech.com/zhangdingyuan/pull-request-sync-services/database"
 )
 
 // Manager is github module manager

@@ -6,10 +6,10 @@ import (
 	"os/exec"
 	"strconv"
 
-	"github.com/colorful-fullstack/PRTools/Controller"
 	"github.com/gin-gonic/gin"
 	"github.com/google/go-github/github"
 	"github.com/sirupsen/logrus"
+	"gitlabwh.uniontech.com/zhangdingyuan/pull-request-sync-services/Controller"
 	"golang.org/x/oauth2"
 )
 

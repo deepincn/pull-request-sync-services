@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/colorful-fullstack/PRTools/config"
 	"github.com/google/go-github/github"
+	"gitlabwh.uniontech.com/zhangdingyuan/pull-request-sync-services/config"
 	"golang.org/x/oauth2"
 )
 

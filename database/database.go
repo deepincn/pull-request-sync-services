@@ -3,7 +3,7 @@ package database
 import (
 	"errors"
 
-	"github.com/colorful-fullstack/PRTools/config"
+	"gitlabwh.uniontech.com/zhangdingyuan/pull-request-sync-services/config"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )

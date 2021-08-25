@@ -1,7 +1,7 @@
 package gerrit
 
 import (
-	"github.com/colorful-fullstack/PRTools/config"
+	"gitlabwh.uniontech.com/zhangdingyuan/pull-request-sync-services/config"
 	"golang.org/x/build/gerrit"
 )
 

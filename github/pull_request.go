@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"strconv"
 
-	"github.com/colorful-fullstack/PRTools/database"
+	"gitlabwh.uniontech.com/zhangdingyuan/pull-request-sync-services/database"
 
 	"github.com/google/go-github/v35/github"
 	"github.com/sirupsen/logrus"

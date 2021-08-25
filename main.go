@@ -6,12 +6,12 @@ import (
 	"os"
 	"time"
 
-	"github.com/colorful-fullstack/PRTools/database"
+	"gitlabwh.uniontech.com/zhangdingyuan/pull-request-sync-services/database"
 
-	"github.com/colorful-fullstack/PRTools/config"
-	"github.com/colorful-fullstack/PRTools/github"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
+	"gitlabwh.uniontech.com/zhangdingyuan/pull-request-sync-services/config"
+	"gitlabwh.uniontech.com/zhangdingyuan/pull-request-sync-services/github"
 	"gopkg.in/yaml.v2"
 )
 
