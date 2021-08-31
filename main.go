@@ -48,8 +48,9 @@ func main() {
 	githubManager := github.New(conf, db)
 
 	router := gin.Default()
-	router.POST("/merge/:repo/:number", githubManager.MergeHandle)
+	router.POST("/github/:repo/:id", githubManager.SyncHandle)
 	router.POST("/webhook/github", githubManager.WebhookHandle)
+	router.PUT("/gerrit/:repo/:id", githubManager.MergeHandle)
 	srv := &http.Server{
 		Handler: router,
 		Addr:    "127.0.0.1:3002",

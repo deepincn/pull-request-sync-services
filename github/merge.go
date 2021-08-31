@@ -10,6 +10,7 @@ import (
 	"github.com/google/go-github/github"
 	"github.com/sirupsen/logrus"
 	"gitlabwh.uniontech.com/zhangdingyuan/pull-request-sync-services/Controller"
+	"gitlabwh.uniontech.com/zhangdingyuan/pull-request-sync-services/database"
 	"golang.org/x/oauth2"
 )
 
@@ -25,7 +26,13 @@ func (t *PushTask) Name() string {
 
 // 先合并原本的pr，再强制推送一次gerrit的数据
 func (t *PushTask) DoTask() error {
-	_, err := t.manager.db.Find(t.repo, t.number)
+	find := database.Find{
+		Name: t.repo,
+		Gerrit: database.Gerrit{
+			ID: t.number,
+		},
+	}
+	_, err := t.manager.db.Find(find)
 
 	if err != nil {
 		logrus.Error(err)
@@ -74,7 +81,7 @@ func (t *PushTask) DoTask() error {
 }
 
 func (m *Manager) MergeHandle(c *gin.Context) {
-	number, err := strconv.Atoi(c.Param("number"))
+	number, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		logrus.Error("number not a int")
 		return

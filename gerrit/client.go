@@ -1,6 +1,8 @@
 package gerrit
 
 import (
+	"context"
+
 	"gitlabwh.uniontech.com/zhangdingyuan/pull-request-sync-services/config"
 	"golang.org/x/build/gerrit"
 )
@@ -15,4 +17,15 @@ func NewClient(conf *config.Yaml) *Client {
 		conf: conf,
 		gerrit: gerrit.NewClient("https://gerrit.uniontech.com", gerrit.BasicAuth(*conf.Auth.Gerrit.User, *conf.Auth.Gerrit.Password)),
 	}
+}
+
+func (m *Client) Find(changeid string) (int, error) {
+	ctx:= context.Background()
+	detail, err := m.gerrit.GetChangeDetail(ctx, changeid, gerrit.QueryChangesOpt{})
+
+	if err != nil {
+		return -1, err
+	}
+
+	return detail.ChangeNumber, nil
 }

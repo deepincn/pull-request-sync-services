@@ -1,10 +1,13 @@
 package github
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/oauth2"
 
 	"github.com/google/go-github/v35/github"
 	"github.com/sirupsen/logrus"
@@ -15,18 +18,134 @@ import (
 
 // Manager is github module manager
 type Manager struct {
-	conf *config.Yaml
-	db   *database.DataBase
+	conf        *config.Yaml
+	db          *database.DataBase
 	taskChannel *chan Controller.Job
 }
 
 // New creates
 func New(conf *config.Yaml, db *database.DataBase) *Manager {
 	return &Manager{
-		conf: conf,
-		db:   db,
+		conf:        conf,
+		db:          db,
 		taskChannel: Controller.InitPool(20, 5),
 	}
+}
+
+func (m *Manager) SyncHandle(c *gin.Context) {
+	repo := c.Param("repo")
+	id, err := strconv.Atoi(c.Param("id"))
+	forceUpdate := c.DefaultQuery("force", "false")
+
+	if err != nil {
+		logrus.Error("number not a int")
+		return
+	}
+
+	// find a record
+	var record *database.PullRequestModel
+	record, err = m.db.FindByID(repo, id)
+	if forceUpdate == "true" || err != nil {
+		var task *PRTask
+		task, err = m.SyncPR(repo, id)
+		if err != nil {
+			logrus.Errorf("Failed to sync pull request: ", err)
+			return
+		}
+		err = task.DoTask()
+		if err != nil {
+			logrus.Errorf("Failed to sync pull request: ", err)
+			c.JSON(500, "")
+			return
+		}
+	}
+
+	record, err = m.db.FindByID(repo, id)
+	type Result struct {
+		Repo        string `json:"repo,omitempty"`
+		PullRequest struct {
+			Number   int    `json:"number,omitempty"`
+			Hash     string `json:"hash,omitempty"`
+			RepoHash string `json:"repo_hash,omitempty"`
+		} `json:"pull_request,omitempty"`
+		Author struct {
+			UserName string `json:"username,omitempty"`
+			Email    string `json:"email,omitempty"`
+		} `json:"author,omitempty"`
+		Gerrit struct {
+			Number   int    `json:"number,omitempty"`
+			ChangeID string `json:"changeid,omitempty"`
+		} `json:"gerrit,omitempty"`
+	}
+	c.JSON(200, &Result{
+		Repo: repo,
+		PullRequest: struct {
+			Number   int    `json:"number,omitempty"`
+			Hash     string `json:"hash,omitempty"`
+			RepoHash string `json:"repo_hash,omitempty"`
+		}{
+			Number:   id,
+			Hash:     "",
+			RepoHash: "",
+		},
+		Author: struct {
+			UserName string `json:"username,omitempty"`
+			Email    string `json:"email,omitempty"`
+		}{
+			UserName: record.Sender.Author,
+			Email:    record.Sender.Email,
+		},
+		Gerrit: struct {
+			Number   int    `json:"number,omitempty"`
+			ChangeID string `json:"changeid,omitempty"`
+		}{
+			Number:   record.Gerrit.ID,
+			ChangeID: record.Gerrit.ChangeID,
+		},
+	})
+}
+
+func (m *Manager) SyncPR(repo string, id int) (*PRTask, error) {
+	// init client
+	ctx := context.Background()
+	ts := oauth2.StaticTokenSource(
+		&oauth2.Token{AccessToken: *m.conf.Auth.Github.Token},
+	)
+
+	client := github.NewClient(oauth2.NewClient(ctx, ts))
+
+	pr, _, err := client.PullRequests.Get(ctx, "linuxdeepin", repo, id)
+
+	if err != nil {
+		return nil, err
+	}
+
+	logrus.Debug(*pr.User)
+
+	return &PRTask{
+		Model: database.PullRequestModel{
+			Github: database.Github{
+				ID: id,
+			},
+			Repo: database.Repo{
+				Name:  repo,
+				Title: pr.GetTitle(),
+				Body:  pr.GetBody(),
+			},
+			Head: database.Head{
+				Label: pr.Head.GetLabel(),
+				Ref:   pr.Head.GetRef(),
+			},
+			Sender: database.Sender{
+				Login:  pr.User.GetLogin(),
+			},
+			Base: database.Base{
+				Sha: pr.Base.GetSHA(),
+			},
+		},
+		manager:  m,
+		diffFile: fmt.Sprintf("/tmp/#%v.#%v.diff", repo, id),
+	}, nil
 }
 
 // WebhookHandle init
@@ -63,14 +182,14 @@ func (m *Manager) WebhookHandle(c *gin.Context) {
 	case *github.IssueEvent:
 		logrus.Infof("IssueEvent: %v", *event.ID)
 	case *github.PullRequestEvent:
+		logrus.Infof("PullRequestEvent: %v", *event.Number)
 		go func() {
-			logrus.Infof("PullRequestEvent: %v", *event.Number)
-			task := &PRTask {
-				event: event,
-				manager: m,
-				diffFile: fmt.Sprintf("/tmp/#%v.#%v.diff", event.Repo.GetName(), event.GetNumber()),
+			task, err := m.SyncPR(event.Repo.GetName(), event.GetNumber())
+			if err != nil {
+				logrus.Errorf("Error syncing pull request: %v", err)
+				return
 			}
-			*m.taskChannel <- Controller.Job {
+			*m.taskChannel <- Controller.Job{
 				Task: task,
 			}
 		}()
@@ -78,10 +197,10 @@ func (m *Manager) WebhookHandle(c *gin.Context) {
 		go func() {
 			logrus.Infof("CommentEvent: %v", event.GetComment())
 			task := &CommentTask{
-				event: event,
+				event:   event,
 				manager: m,
 			}
-			*m.taskChannel <- Controller.Job {
+			*m.taskChannel <- Controller.Job{
 				Task: task,
 			}
 		}()

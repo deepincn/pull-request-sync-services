@@ -43,13 +43,14 @@
 
 #### 同步一个指定请求
 
-GET `/github/{repo}/{id}`
+POST `/github/{repo}/{id}`
 
 |Name|Type|In|Description|
 |:----|:----|:----|:----|
 |Accept|string|header|设置参数的格式和响应内容的格式，仅支持 application/json|
 |repo|string|path|项目名称|
 |id|integer|path|github pr 的编号|
+|force|bool|argument|设置是否强制更新|
 
 **例子**
 
