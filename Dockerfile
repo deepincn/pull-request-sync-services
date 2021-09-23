@@ -1,9 +1,15 @@
 FROM golang:alpine
 
-WORKDIR /go/src/app
+WORKDIR /src/app
 
 COPY . .
 
-RUN go build
+RUN apk add gcc
+RUN apk add g++
+RUN apk add git
+RUN apk add git-review
+RUN apk add openssh
 
-CMD ["pull-request-sync-services"]
+RUN env GIN_MODE=release go build
+
+CMD ["/src/app/pull-request-sync-services"]
