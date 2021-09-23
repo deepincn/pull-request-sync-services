@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/oauth2"
@@ -120,7 +121,11 @@ func (m *Manager) SyncPR(repo string, id int) (*PRTask, error) {
 		return nil, err
 	}
 
-	logrus.Debug(*pr.User)
+	branch, _, err := client.Repositories.GetBranch(ctx, "linuxdeepin", repo, pr.Head.GetRef())
+
+	if err != nil {
+		return nil, err
+	}
 
 	return &PRTask{
 		Model: database.PullRequestModel{
@@ -140,7 +145,7 @@ func (m *Manager) SyncPR(repo string, id int) (*PRTask, error) {
 				Login:  pr.User.GetLogin(),
 			},
 			Base: database.Base{
-				Sha: pr.Base.GetSHA(),
+				Sha: strings.Trim(branch.GetCommit().GetSHA(), "origin/"),
 			},
 		},
 		manager:  m,

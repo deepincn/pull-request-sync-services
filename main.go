@@ -31,8 +31,16 @@ func init() {
 }
 
 func main() {
+	debug := os.Getenv("DEBUG_MODE")
 	conf := new(config.Yaml)
-	yamlFile, err := ioutil.ReadFile("config.yaml")
+
+	var yamlFile []byte
+	var err error
+	if debug == "TRUE" {
+		yamlFile, err = ioutil.ReadFile("config.yaml")
+	} else {
+		yamlFile, err = ioutil.ReadFile("/etc/sync/config.yaml")
+	}
 	if err != nil {
 		logrus.Infof("yamlFile.Get err #%v ", err)
 	}
@@ -53,7 +61,7 @@ func main() {
 	router.PUT("/gerrit/:repo/:id", githubManager.MergeHandle)
 	srv := &http.Server{
 		Handler: router,
-		Addr:    "127.0.0.1:3002",
+		Addr:    "0.0.0.0:3002",
 		// Good practice: enforce timeouts for servers you create!
 		WriteTimeout: 15 * time.Second,
 		ReadTimeout:  15 * time.Second,

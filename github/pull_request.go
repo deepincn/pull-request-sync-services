@@ -73,8 +73,7 @@ func (t *PRTask) Path() string {
 }
 
 func (t *PRTask) DoTask() error {
-	t.pullRequestHandler()
-	return nil
+	return t.pullRequestHandler()
 }
 
 func runSingleCmd(command *exec.Cmd) error {
@@ -127,12 +126,13 @@ func (this *PRTask) clone() error {
 
 // reset
 func (this *PRTask) reset() error {
-	master := exec.Command("git", "checkout", "master", "-f")
+	master := exec.Command("git", "checkout", "--track", "origin/" + this.Model.Head.Ref)
 	master.Dir = this.Path()
+	runSingleCmd(master)
 
-	if err := runSingleCmd(master); err != nil {
-		return err
-	}
+	checkout := exec.Command("git", "checkout", this.Model.Head.Ref, "-f")
+	checkout.Dir = this.Path()
+	runSingleCmd(checkout)
 
 	// e.g. git branch -D 387 patch_387
 	// 删除本地的pr对应分支
@@ -141,13 +141,16 @@ func (this *PRTask) reset() error {
 		number,
 	))
 	reset.Dir = this.Path()
+	runSingleCmd(reset)
 
-	return runSingleCmd(reset)
+	//return runSingleCmd(reset)
+	return nil
 }
 
 // rebase current branch
 func (this *PRTask) rebase() error {
-	rebase := exec.Command("git", "rebase", "master")
+	logrus.Info("[rebase]...")
+	rebase := exec.Command("git", "rebase", this.Model.Head.Ref)
 	rebase.Dir = this.Path()
 	if err := runSingleCmd(rebase); err != nil {
 		restore := exec.Command("git", "rebase", "--abort")
@@ -200,7 +203,7 @@ func (this *PRTask) fetch() error {
 
 // checkout
 func (this *PRTask) checkout() error {
-	master := exec.Command("git", "checkout", "master", "-f")
+	master := exec.Command("git", "checkout", this.Model.Head.Ref, "-f")
 	master.Dir = this.Path()
 	runSingleCmd(master)
 
@@ -276,7 +279,7 @@ func (this *PRTask) patch() error {
 }
 
 func (this *PRTask) review() error {
-	review := exec.Command("git", "review", "master", "-r", "origin")
+	review := exec.Command("git", "review", this.Model.Head.Ref, "-r", "origin")
 	review.Dir = this.Path()
 
 	return runSingleCmd(review)

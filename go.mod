@@ -6,7 +6,7 @@ require (
 	github.com/ProtonMail/go-crypto v0.0.0-20210707164159-52430bf6b52c // indirect
 	github.com/andygrunwald/go-gerrit v0.0.0-20210726065827-cc4e14e40b5b // indirect
 	github.com/gin-gonic/gin v1.7.4
-	github.com/go-git/go-git/v5 v5.4.2 // indirect
+	github.com/go-git/go-git/v5 v5.4.2
 	github.com/go-playground/validator/v10 v10.9.0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/go-github v17.0.0+incompatible
