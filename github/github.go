@@ -55,7 +55,7 @@ func (m *Manager) SyncHandle(c *gin.Context) {
 		}
 		err = task.DoTask()
 		if err != nil {
-			logrus.Errorf("Failed to sync pull request: ", err)
+			logrus.Errorf("Failed to do sync pull request: ", err)
 			c.JSON(500, "")
 			return
 		}
@@ -121,7 +121,7 @@ func (m *Manager) SyncPR(repo string, id int) (*PRTask, error) {
 		return nil, err
 	}
 
-	branch, _, err := client.Repositories.GetBranch(ctx, "linuxdeepin", repo, pr.Head.GetRef())
+	branch, _, err := client.Repositories.GetBranch(ctx, "linuxdeepin", repo, pr.Base.GetRef())
 
 	if err != nil {
 		return nil, err
