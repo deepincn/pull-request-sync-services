@@ -3,6 +3,7 @@ package config
 // Yaml struct of yaml
 type Yaml struct {
 	Gerrit   *string `yaml:"gerrit"`
+	GerritServer *string `yaml:"gerrit_server"`
 	RepoDir  *string `yaml:"repo_dir"`
 	Database *struct {
 		Type     *string `yaml:"type"`

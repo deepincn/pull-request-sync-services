@@ -15,7 +15,7 @@ type Client struct {
 func NewClient(conf *config.Yaml) *Client {
 	return &Client {
 		conf: conf,
-		gerrit: gerrit.NewClient("https://gerrit.uniontech.com", gerrit.BasicAuth(*conf.Auth.Gerrit.User, *conf.Auth.Gerrit.Password)),
+		gerrit: gerrit.NewClient(*conf.GerritServer, gerrit.BasicAuth(*conf.Auth.Gerrit.User, *conf.Auth.Gerrit.Password)),
 	}
 }
 
