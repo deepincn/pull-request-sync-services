@@ -146,6 +146,7 @@ func (m *Manager) SyncPR(repo string, id int) (*PRTask, error) {
 			},
 			Base: database.Base{
 				Sha: strings.Trim(branch.GetCommit().GetSHA(), "origin/"),
+				Ref: pr.Base.GetRef(),
 			},
 		},
 		manager:  m,

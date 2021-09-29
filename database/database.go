@@ -28,6 +28,7 @@ type Sender struct {
 
 type Base struct {
 	Sha string
+	Ref string
 }
 
 type Gerrit struct {

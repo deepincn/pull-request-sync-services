@@ -116,7 +116,7 @@ func (this *PRTask) clone() error {
 	remote := exec.Command("git", "remote", "add", "github", "https://github.com/linuxdeepin/"+this.Name())
 	remote.Dir = this.Path()
 
-	fetch := exec.Command("git", "fetch", "--all", "--tags")
+	fetch := exec.Command("git", "fetch", "--all")
 	fetch.Dir = this.Path()
 
 	list = append(list, init, remote, fetch)
@@ -126,11 +126,11 @@ func (this *PRTask) clone() error {
 
 // reset
 func (this *PRTask) reset() error {
-	master := exec.Command("git", "checkout", "--track", "origin/" + this.Model.Head.Ref)
+	master := exec.Command("git", "checkout", "--track", "origin/" + this.Model.Base.Ref)
 	master.Dir = this.Path()
 	runSingleCmd(master)
 
-	checkout := exec.Command("git", "checkout", this.Model.Head.Ref, "-f")
+	checkout := exec.Command("git", "checkout", this.Model.Base.Ref, "-f")
 	checkout.Dir = this.Path()
 	runSingleCmd(checkout)
 
@@ -150,7 +150,7 @@ func (this *PRTask) reset() error {
 // rebase current branch
 func (this *PRTask) rebase() error {
 	logrus.Info("[rebase]...")
-	rebase := exec.Command("git", "rebase", this.Model.Head.Ref)
+	rebase := exec.Command("git", "rebase", this.Model.Base.Ref)
 	rebase.Dir = this.Path()
 	if err := runSingleCmd(rebase); err != nil {
 		restore := exec.Command("git", "rebase", "--abort")
@@ -203,7 +203,7 @@ func (this *PRTask) fetch() error {
 
 // checkout
 func (this *PRTask) checkout() error {
-	master := exec.Command("git", "checkout", this.Model.Head.Ref, "-f")
+	master := exec.Command("git", "checkout", this.Model.Base.Ref, "-f")
 	master.Dir = this.Path()
 	runSingleCmd(master)
 
