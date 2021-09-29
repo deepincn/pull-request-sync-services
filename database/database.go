@@ -3,8 +3,8 @@ package database
 import (
 	"errors"
 
+	"github.com/deepincn/pull-request-sync-services/config"
 	"github.com/sirupsen/logrus"
-	"gitlabwh.uniontech.com/zhangdingyuan/pull-request-sync-services/config"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )

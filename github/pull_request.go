@@ -7,8 +7,8 @@ import (
 	"os/exec"
 	"strconv"
 
-	"gitlabwh.uniontech.com/zhangdingyuan/pull-request-sync-services/database"
-	"gitlabwh.uniontech.com/zhangdingyuan/pull-request-sync-services/gerrit"
+	"github.com/deepincn/pull-request-sync-services/database"
+	"github.com/deepincn/pull-request-sync-services/gerrit"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/sirupsen/logrus"

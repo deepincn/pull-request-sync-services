@@ -6,12 +6,12 @@ import (
 	"os"
 	"time"
 
-	"gitlabwh.uniontech.com/zhangdingyuan/pull-request-sync-services/database"
+	"github.com/deepincn/pull-request-sync-services/database"
 
+	"github.com/deepincn/pull-request-sync-services/config"
+	"github.com/deepincn/pull-request-sync-services/github"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
-	"gitlabwh.uniontech.com/zhangdingyuan/pull-request-sync-services/config"
-	"gitlabwh.uniontech.com/zhangdingyuan/pull-request-sync-services/github"
 	"gopkg.in/yaml.v2"
 )
 

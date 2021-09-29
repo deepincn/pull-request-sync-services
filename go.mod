@@ -1,4 +1,4 @@
-module gitlabwh.uniontech.com/zhangdingyuan/pull-request-sync-services
+module github.com/deepincn/pull-request-sync-services
 
 go 1.16
 

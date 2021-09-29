@@ -6,11 +6,11 @@ import (
 	"os/exec"
 	"strconv"
 
+	"github.com/deepincn/pull-request-sync-services/Controller"
+	"github.com/deepincn/pull-request-sync-services/database"
 	"github.com/gin-gonic/gin"
 	"github.com/google/go-github/github"
 	"github.com/sirupsen/logrus"
-	"gitlabwh.uniontech.com/zhangdingyuan/pull-request-sync-services/Controller"
-	"gitlabwh.uniontech.com/zhangdingyuan/pull-request-sync-services/database"
 	"golang.org/x/oauth2"
 )
 

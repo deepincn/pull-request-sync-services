@@ -3,7 +3,7 @@ package gerrit
 import (
 	"context"
 
-	"gitlabwh.uniontech.com/zhangdingyuan/pull-request-sync-services/config"
+	"github.com/deepincn/pull-request-sync-services/config"
 	"golang.org/x/build/gerrit"
 )
 

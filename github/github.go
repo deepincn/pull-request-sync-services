@@ -10,11 +10,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"golang.org/x/oauth2"
 
+	"github.com/deepincn/pull-request-sync-services/Controller"
+	"github.com/deepincn/pull-request-sync-services/config"
+	"github.com/deepincn/pull-request-sync-services/database"
 	"github.com/google/go-github/v35/github"
 	"github.com/sirupsen/logrus"
-	"gitlabwh.uniontech.com/zhangdingyuan/pull-request-sync-services/Controller"
-	"gitlabwh.uniontech.com/zhangdingyuan/pull-request-sync-services/config"
-	"gitlabwh.uniontech.com/zhangdingyuan/pull-request-sync-services/database"
 )
 
 // Manager is github module manager
