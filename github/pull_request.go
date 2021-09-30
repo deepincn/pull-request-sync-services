@@ -9,6 +9,7 @@ import (
 
 	"github.com/deepincn/pull-request-sync-services/database"
 	"github.com/deepincn/pull-request-sync-services/gerrit"
+	"github.com/deepincn/pull-request-sync-services/tools"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/sirupsen/logrus"
@@ -76,86 +77,86 @@ func (t *PRTask) DoTask() error {
 	return t.pullRequestHandler()
 }
 
-func runSingleCmd(command *exec.Cmd) error {
-	stdout, err := command.StdoutPipe()
-	command.Stderr = command.Stdout
-	if err = command.Start(); err != nil {
-		return err
-	}
-	for {
-		tmp := make([]byte, 1024)
-		_, err := stdout.Read(tmp)
-		logrus.Debug(string(tmp))
-		if err != nil {
-			break
-		}
-	}
-	return command.Wait()
-}
-
-func runCmdList(list []*exec.Cmd) error {
-	for _, command := range list {
-		if err := runSingleCmd(command); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 // initRepo
 func (this *PRTask) clone() error {
 	if _, err := os.Stat(this.Path()); !os.IsNotExist(err) {
 		return nil
 	}
 
-	var list []*exec.Cmd
-	init := exec.Command("git", "clone", *this.manager.conf.Gerrit+this.Name())
-	init.Dir = *this.manager.conf.RepoDir
+	var list []*tools.Command
 
-	remote := exec.Command("git", "remote", "add", "github", "https://github.com/linuxdeepin/"+this.Name())
-	remote.Dir = this.Path()
+	init := &tools.Command{
+		Program: "git",
+		Args:    []string{"clone", *this.manager.conf.Gerrit + this.Name()},
+		Dir:     *this.manager.conf.RepoDir,
+		Timeout: 3600,
+	}
 
-	fetch := exec.Command("git", "fetch", "--all")
-	fetch.Dir = this.Path()
+	remote := &tools.Command{
+		Program: "git",
+		Args:    []string{"remote", "add", "github", "https://github.com/linuxdeepin/" + this.Name()},
+		Dir:     this.Path(),
+		Timeout: 3600,
+	}
+
+	fetch := &tools.Command{
+		Program: "git",
+		Args:    []string{"fetch", "--all"},
+		Dir:     this.Path(),
+		Timeout: 3600,
+	}
 
 	list = append(list, init, remote, fetch)
 
-	return runCmdList(list)
+	return tools.RunCmdList(list)
 }
 
 // reset
 func (this *PRTask) reset() error {
-	master := exec.Command("git", "checkout", "--track", "origin/" + this.Model.Base.Ref)
-	master.Dir = this.Path()
-	runSingleCmd(master)
+	tools.RunSingleCmd(&tools.Command{
+		Program: "git",
+		Args:    []string{"checkout", "--track", "origin/" + this.Model.Base.Ref},
+		Dir:     this.Path(),
+		Timeout: 3600,
+	})
 
-	checkout := exec.Command("git", "checkout", this.Model.Base.Ref, "-f")
-	checkout.Dir = this.Path()
-	runSingleCmd(checkout)
+	tools.RunSingleCmd(&tools.Command{
+		Program: "git",
+		Args:    []string{"checkout", this.Model.Base.Ref, "-f"},
+		Dir:     this.Path(),
+		Timeout: 3600,
+	})
 
 	// e.g. git branch -D 387 patch_387
 	// 删除本地的pr对应分支
 	var number = strconv.Itoa(this.Model.Github.ID)
-	reset := exec.Command("git", "branch", "-D", fmt.Sprintf("%v",
-		number,
-	))
-	reset.Dir = this.Path()
-	runSingleCmd(reset)
+	tools.RunSingleCmd(&tools.Command{
+		Program: "git",
+		Args: []string{"branch", "-D", fmt.Sprintf("%v",
+			number,
+		)},
+		Dir:     this.Path(),
+		Timeout: 3600,
+	})
 
-	//return runSingleCmd(reset)
+	//return tools.RunSingleCmd(reset)
 	return nil
 }
 
 // rebase current branch
 func (this *PRTask) rebase() error {
 	logrus.Info("[rebase]...")
-	rebase := exec.Command("git", "rebase", this.Model.Base.Ref)
-	rebase.Dir = this.Path()
-	if err := runSingleCmd(rebase); err != nil {
-		restore := exec.Command("git", "rebase", "--abort")
-		restore.Dir = this.Path()
-		runSingleCmd(restore)
+	if err := tools.RunSingleCmd(&tools.Command{
+		Program: "git",
+		Args:    []string{"rebase", this.Model.Base.Ref},
+		Dir:     this.Path(),
+		Timeout: 3600,
+	}); err != nil {
+		tools.RunSingleCmd(&tools.Command{
+			Program: "git",
+			Args:    []string{"rebase", "--abort"},
+			Timeout: 3600,
+		})
 		return err
 	}
 
@@ -169,20 +170,24 @@ func (this *PRTask) fetch() error {
 	var number = strconv.Itoa(this.Model.Github.ID)
 
 	// 下载最新的分支
-	fetch := exec.Command("git", "fetch", "github", fmt.Sprintf("pull/%v/head:%v",
-		number,
-		number,
-	))
-	fetch.Dir = this.Path()
-
-	if err := runSingleCmd(fetch); err != nil {
+	if err := tools.RunSingleCmd(&tools.Command{
+		Program: "git",
+		Args: []string{"fetch", "github", fmt.Sprintf("pull/%v/head:%v",
+			number,
+			number,
+		)},
+		Dir:     this.Path(),
+		Timeout: 3600,
+	}); err != nil {
 		return err
 	}
 
-	checkout2pr := exec.Command("git", "checkout", number)
-	checkout2pr.Dir = this.Path()
-
-	runSingleCmd(checkout2pr)
+	tools.RunSingleCmd(&tools.Command{
+		Program: "git",
+		Args:    []string{"checkout", number},
+		Dir:     this.Path(),
+		Timeout: 3600,
+	})
 
 	r, _ := git.PlainOpen(this.Path())
 	ref, _ := r.Head()
@@ -195,37 +200,45 @@ func (this *PRTask) fetch() error {
 		return err
 	}
 
-	diff := exec.Command("bash", "-c", fmt.Sprintf("git diff %v > %v", this.Model.Base.Sha, this.diffFile))
-	diff.Dir = this.Path()
-
-	return runSingleCmd(diff)
+	return tools.RunSingleCmd(&tools.Command{
+		Program: "bash",
+		Args:    []string{"-c", fmt.Sprintf("git diff %v > %v", this.Model.Base.Sha, this.diffFile)},
+		Dir:     this.Path(),
+		Timeout: 3600,
+	})
 }
 
 // checkout
 func (this *PRTask) checkout() error {
-	master := exec.Command("git", "checkout", this.Model.Base.Ref, "-f")
-	master.Dir = this.Path()
-	runSingleCmd(master)
+	tools.RunSingleCmd(&tools.Command{
+		Program: "git",
+		Args:    []string{"checkout", this.Model.Base.Ref, "-f"},
+		Dir:     this.Path(),
+		Timeout: 3600,
+	})
 
 	// 创建一个对应pr的patch分支
-	reset := exec.Command("git", "branch", "-D", fmt.Sprintf("patch_%v",
-		strconv.Itoa(this.Model.Github.ID),
-	))
-	reset.Dir = this.Path()
+	tools.RunSingleCmd(&tools.Command{
+		Program: "git",
+		Args: []string{"branch", "-D", fmt.Sprintf("patch_%v",
+			strconv.Itoa(this.Model.Github.ID),
+		)},
+		Dir:     this.Path(),
+		Timeout: 3600,
+	})
 
-	runSingleCmd(reset)
-
-	checkout := exec.Command("git", "checkout", "-b", fmt.Sprintf("patch_%v",
-		strconv.Itoa(this.Model.Github.ID),
-	))
-	checkout.Dir = this.Path()
-	return runSingleCmd(checkout)
+	return tools.RunSingleCmd(&tools.Command{
+		Program: "git",
+		Args: []string{"checkout", "-b", fmt.Sprintf("patch_%v",
+			strconv.Itoa(this.Model.Github.ID),
+		)},
+		Dir:     this.Path(),
+		Timeout: 3600,
+	})
 }
 
 // merge
 func (this *PRTask) patch() error {
-	var list []*exec.Cmd
-
 	var msg string
 	msg += "feat: " + this.Model.Repo.Title + "\n\n"
 	msg += this.Model.Repo.Body + "\n\n"
@@ -258,31 +271,47 @@ func (this *PRTask) patch() error {
 
 	msg += "Change-Id: I" + changeID + "\n"
 
-	patch := exec.Command("git", "apply", this.diffFile)
-	patch.Dir = this.Path()
+	patch := &tools.Command{
+		Program: "git",
+		Args:    []string{"apply", this.diffFile},
+		Dir:     this.Path(),
+		Timeout: 3600,
+	}
 
-	add := exec.Command("git", "add", ".")
-	add.Dir = this.Path()
+	add := &tools.Command{
+		Program: "git",
+		Args:    []string{"add", "."},
+		Dir:     this.Path(),
+		Timeout: 3600,
+	}
 
-	commit := exec.Command("git", "commit", "-m", msg, fmt.Sprintf("--author=\"%v <%v>\"",
-		this.Model.Sender.Author,
-		this.Model.Sender.Email,
-	))
 	logrus.Debug(this.Model.Sender.Author, this.Model.Sender.Email)
-	commit.Dir = this.Path()
 
+	commit := &tools.Command{
+		Program: "git",
+		Args: []string{"commit", "-m", msg, fmt.Sprintf("--author=\"%v <%v>\"",
+			this.Model.Sender.Author,
+			this.Model.Sender.Email,
+		)},
+		Dir:     this.Path(),
+		Timeout: 3600,
+	}
+
+	var list []*tools.Command
 	list = append(list, patch, add, commit)
 
-	err = runCmdList(list)
+	err = tools.RunCmdList(list)
 
 	return err
 }
 
 func (this *PRTask) review() error {
-	review := exec.Command("git", "review", this.Model.Head.Ref, "-r", "origin")
-	review.Dir = this.Path()
-
-	return runSingleCmd(review)
+	return tools.RunSingleCmd(&tools.Command{
+		Program: "git",
+		Args:    []string{"review", this.Model.Head.Ref, "-r", "origin"},
+		Dir:     this.Path(),
+		Timeout: 3600,
+	})
 }
 
 func (this *PRTask) updateGerrit() error {
