@@ -155,6 +155,7 @@ func (this *PRTask) rebase() error {
 		tools.RunSingleCmd(&tools.Command{
 			Program: "git",
 			Args:    []string{"rebase", "--abort"},
+			Dir: this.Path(),
 			Timeout: 3600,
 		})
 		return err
