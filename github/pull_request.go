@@ -115,6 +115,13 @@ func (this *PRTask) clone() error {
 func (this *PRTask) reset() error {
 	tools.RunSingleCmd(&tools.Command{
 		Program: "git",
+		Args:    []string{"rebase", "--abort"},
+		Dir: this.Path(),
+		Timeout: 3600,
+	})
+
+	tools.RunSingleCmd(&tools.Command{
+		Program: "git",
 		Args:    []string{"checkout", "--track", "origin/" + this.Model.Base.Ref},
 		Dir:     this.Path(),
 		Timeout: 3600,

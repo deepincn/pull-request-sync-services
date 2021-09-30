@@ -9,6 +9,7 @@ RUN apk add g++
 RUN apk add git
 RUN apk add git-review
 RUN apk add openssh
+RUN apk add bash
 
 RUN env GIN_MODE=release go build
 
