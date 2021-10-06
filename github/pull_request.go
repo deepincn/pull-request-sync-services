@@ -56,13 +56,14 @@ func generateChangeId() string {
 	_ = c2.Start()
 	_ = c1.Run()
 	_ = c2.Wait()
-	return output.String()
+	return fmt.Sprintf("I%v", output.String())
 }
 
 type PRTask struct {
 	manager  *Manager
 	diffFile string
 	Model    database.PullRequestModel
+	forceUpdate bool
 }
 
 func (t *PRTask) Name() string {
@@ -116,7 +117,7 @@ func (this *PRTask) reset() error {
 	tools.RunSingleCmd(&tools.Command{
 		Program: "git",
 		Args:    []string{"rebase", "--abort"},
-		Dir: this.Path(),
+		Dir:     this.Path(),
 		Timeout: 3600,
 	})
 
@@ -162,7 +163,7 @@ func (this *PRTask) rebase() error {
 		tools.RunSingleCmd(&tools.Command{
 			Program: "git",
 			Args:    []string{"rebase", "--abort"},
-			Dir: this.Path(),
+			Dir:     this.Path(),
 			Timeout: 3600,
 		})
 		return err
@@ -178,7 +179,7 @@ func (this *PRTask) fetch() error {
 	var number = strconv.Itoa(this.Model.Github.ID)
 
 	// 下载最新的分支
-	if err := tools.RunSingleCmd(&tools.Command{
+	tools.RunSingleCmd(&tools.Command{
 		Program: "git",
 		Args: []string{"fetch", "github", fmt.Sprintf("pull/%v/head:%v",
 			number,
@@ -186,9 +187,7 @@ func (this *PRTask) fetch() error {
 		)},
 		Dir:     this.Path(),
 		Timeout: 3600,
-	}); err != nil {
-		return err
-	}
+	})
 
 	tools.RunSingleCmd(&tools.Command{
 		Program: "git",
@@ -204,9 +203,9 @@ func (this *PRTask) fetch() error {
 	this.Model.Sender.Author = commit.Author.Name
 	this.Model.Sender.Email = commit.Author.Email
 
-	if err := this.rebase(); err != nil {
-		return err
-	}
+	//	if err := this.rebase(); err != nil {
+	//		return err
+	//	}
 
 	return tools.RunSingleCmd(&tools.Command{
 		Program: "bash",
@@ -253,37 +252,39 @@ func (this *PRTask) patch() error {
 	msg += "Log:\n"
 	msg += fmt.Sprintf("Issue: #%v\n", this.Model.Github.ID)
 
-	// TODO: check change id in database
-	find := database.Find{
-		Name: this.Name(),
-		Github: database.Github{
-			ID: this.Model.Github.ID,
-		},
-	}
-	result, err := this.manager.db.Find(find)
+	result, err := this.manager.db.FindByID(this.Name(), this.Model.Github.ID)
 	var changeID string
+	logrus.Debug(err)
 	if err != nil {
 		changeID = generateChangeId()
-		record := this.Model
-		record.Gerrit.ChangeID = changeID
-		// NOTE: 不要忘记还没有更新 gerrit id
-		err := this.manager.db.Create(&record)
-		if err != nil {
-			return err
-		}
+		this.Model.Gerrit.ChangeID = changeID
 	} else {
 		changeID = result.Gerrit.ChangeID
 	}
 
 	logrus.Debugf("Change Id: %s", changeID)
 
-	msg += "Change-Id: I" + changeID + "\n"
+	msg += "Change-Id: " + changeID + "\n"
 
+	// 尝试直接使用patch文件，如果失败，则尝试rebase后，再执行操作
 	patch := &tools.Command{
 		Program: "git",
 		Args:    []string{"apply", this.diffFile},
 		Dir:     this.Path(),
 		Timeout: 3600,
+	}
+
+	if err := tools.RunSingleCmd(patch); err != nil {
+		tools.RunSingleCmd(&tools.Command{
+			Program: "git",
+			Args:    []string{"checkout", strconv.Itoa(this.Model.Github.ID), "-f"},
+			Dir:     this.Path(),
+			Timeout: 3600,
+		})
+		err := this.rebase()
+		if err != nil {
+			return err
+		}
 	}
 
 	add := &tools.Command{
@@ -306,7 +307,7 @@ func (this *PRTask) patch() error {
 	}
 
 	var list []*tools.Command
-	list = append(list, patch, add, commit)
+	list = append(list, add, commit)
 
 	err = tools.RunCmdList(list)
 
@@ -316,19 +317,25 @@ func (this *PRTask) patch() error {
 func (this *PRTask) review() error {
 	return tools.RunSingleCmd(&tools.Command{
 		Program: "git",
-		Args:    []string{"review", this.Model.Head.Ref, "-r", "origin"},
+		Args:    []string{"review", this.Model.Base.Ref, "-r", "origin"},
 		Dir:     this.Path(),
 		Timeout: 3600,
 	})
 }
 
 func (this *PRTask) updateGerrit() error {
+	record := this.Model
+	// NOTE: 不要忘记还没有更新 gerrit id
+	err := this.manager.db.Create(&record)
+	if err != nil {
+		return err
+	}
 	gerrit := gerrit.NewClient(this.manager.conf)
 	number, err := gerrit.Find(this.Model.Gerrit.ChangeID)
 	if err != nil {
 		return err
 	}
-	record := this.Model
+	record = this.Model
 	record.Gerrit.ID = number
 
 	// update to database
@@ -343,38 +350,50 @@ func (this *PRTask) updateGerrit() error {
 func (this *PRTask) pullRequestHandler() error {
 	var err error
 	for {
+		logrus.Info("[Clone]")
 		if err = this.clone(); err != nil {
 			logrus.Errorf("clone: %v", err)
 			break
 		}
-
+		logrus.Info("[Fetch]")
 		if err = this.fetch(); err != nil {
 			logrus.Errorf("fetch: %v", err)
 			logrus.Errorf("reset fetch: %v", this.reset())
 			break
 		}
 
+		logrus.Info("[Checkout]")
 		if err = this.checkout(); err != nil {
 			logrus.Errorf("checkout: %v", err)
 			break
 		}
 
+		logrus.Info("[Patch]")
 		if err = this.patch(); err != nil {
 			logrus.Errorf("patch: %v", err)
 			logrus.Errorf("reset commit: %v", this.reset())
 			break
 		}
 
+		logrus.Info("[Review]")
 		if err = this.review(); err != nil {
 			logrus.Errorf("review: %v", err)
 			logrus.Errorf("reset commit: %v", this.reset())
 			break
 		}
 
-		if err = this.updateGerrit(); err != nil {
-			logrus.Errorf("updateGerrit: %v", err)
-			//TODO: 这里需要考虑更新数据库失败后的操作
-			break
+		if !this.forceUpdate {
+			logrus.Info("[Update Database]")
+			if err = this.updateGerrit(); err != nil {
+				logrus.Errorf("updateGerrit: %v", err)
+				//TODO: 这里需要考虑更新数据库失败后的操作
+				//this.manager.db.Remove(database.Find{
+				//	Name: this.Name(),
+				//	Github: this.Model.Github,
+				//	Gerrit: this.Model.Gerrit,
+				//})
+				break
+			}
 		}
 		break
 	}

@@ -3,9 +3,9 @@ package tools
 import (
 	"bufio"
 	"context"
+	"fmt"
 	"io"
 	"os/exec"
-	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -18,9 +18,9 @@ type Command struct {
 	Timeout uint
 }
 
-func read(ctx context.Context, wg *sync.WaitGroup, std io.ReadCloser) {
+func read(ctx context.Context, std io.ReadCloser, isErr bool) {
 	reader := bufio.NewReader(std)
-	defer wg.Done()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -30,7 +30,11 @@ func read(ctx context.Context, wg *sync.WaitGroup, std io.ReadCloser) {
 			if err != nil || err == io.EOF {
 				return
 			}
-			logrus.Info(readString)
+			if isErr {
+				logrus.Error(readString)
+			} else {
+				logrus.Info(readString)
+			}
 		}
 	}
 }
@@ -58,16 +62,20 @@ func runSingleCmdByContext(ctx context.Context, command *Command) error {
 		return err
 	}
 
-	var wg sync.WaitGroup
-	wg.Add(2)
+	go read(ctx, stderr, true)
+	go read(ctx, stdout, false)
 
-	go read(ctx, &wg, stderr)
-	go read(ctx, &wg, stdout)
+	err = c.Run()
 
-	err = c.Start()
+	if err != nil {
+		return err
+	}
 
-	wg.Wait()
-	return err
+	if c.ProcessState.ExitCode() != 0 {
+		return fmt.Errorf("Exit Code is not 0, %v", command)
+	}
+
+	return nil
 }
 
 func RunCmdList(list []*Command) error {

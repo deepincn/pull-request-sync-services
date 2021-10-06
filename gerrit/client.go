@@ -2,6 +2,7 @@ package gerrit
 
 import (
 	"context"
+	"strings"
 
 	"github.com/deepincn/pull-request-sync-services/config"
 	"golang.org/x/build/gerrit"
@@ -21,7 +22,7 @@ func NewClient(conf *config.Yaml) *Client {
 
 func (m *Client) Find(changeid string) (int, error) {
 	ctx:= context.Background()
-	detail, err := m.gerrit.GetChangeDetail(ctx, changeid, gerrit.QueryChangesOpt{})
+	detail, err := m.gerrit.GetChangeDetail(ctx, strings.TrimSuffix(changeid, "\n"), gerrit.QueryChangesOpt{})
 
 	if err != nil {
 		return -1, err

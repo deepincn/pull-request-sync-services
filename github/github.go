@@ -48,7 +48,7 @@ func (m *Manager) SyncHandle(c *gin.Context) {
 	record, err = m.db.FindByID(repo, id)
 	if forceUpdate == "true" || err != nil {
 		var task *PRTask
-		task, err = m.SyncPR(repo, id)
+		task, err = m.SyncPR(repo, id, true)
 		if err != nil {
 			logrus.Errorf("Failed to sync pull request: ", err)
 			return
@@ -106,7 +106,7 @@ func (m *Manager) SyncHandle(c *gin.Context) {
 	})
 }
 
-func (m *Manager) SyncPR(repo string, id int) (*PRTask, error) {
+func (m *Manager) SyncPR(repo string, id int, forceUpdate bool) (*PRTask, error) {
 	// init client
 	ctx := context.Background()
 	ts := oauth2.StaticTokenSource(
@@ -136,6 +136,7 @@ func (m *Manager) SyncPR(repo string, id int) (*PRTask, error) {
 				Name:  repo,
 				Title: pr.GetTitle(),
 				Body:  pr.GetBody(),
+				Sha: strings.Trim(branch.GetCommit().GetSHA(), "origin/"),
 			},
 			Head: database.Head{
 				Label: pr.Head.GetLabel(),
@@ -145,12 +146,13 @@ func (m *Manager) SyncPR(repo string, id int) (*PRTask, error) {
 				Login:  pr.User.GetLogin(),
 			},
 			Base: database.Base{
-				Sha: strings.Trim(branch.GetCommit().GetSHA(), "origin/"),
+				Sha: pr.Base.GetSHA(),
 				Ref: pr.Base.GetRef(),
 			},
 		},
 		manager:  m,
 		diffFile: fmt.Sprintf("/tmp/#%v.#%v.diff", repo, id),
+		forceUpdate: forceUpdate,
 	}, nil
 }
 
@@ -190,7 +192,7 @@ func (m *Manager) WebhookHandle(c *gin.Context) {
 	case *github.PullRequestEvent:
 		logrus.Infof("PullRequestEvent: %v", *event.Number)
 		go func() {
-			task, err := m.SyncPR(event.Repo.GetName(), event.GetNumber())
+			task, err := m.SyncPR(event.Repo.GetName(), event.GetNumber(), true)
 			if err != nil {
 				logrus.Errorf("Error syncing pull request: %v", err)
 				return

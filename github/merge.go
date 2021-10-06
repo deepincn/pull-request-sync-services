@@ -32,7 +32,7 @@ func (t *PushTask) DoTask() error {
 			ID: t.number,
 		},
 	}
-	_, err := t.manager.db.Find(find)
+	result, err := t.manager.db.Find(find)
 
 	if err != nil {
 		logrus.Error(err)
@@ -51,7 +51,7 @@ func (t *PushTask) DoTask() error {
 	options := &github.PullRequestOptions{
 		MergeMethod: "merge",
 	}
-	_, _, err = client.PullRequests.Merge(ctx, "linuxdeepin", t.repo, t.number, "", options)
+	_, _, err = client.PullRequests.Merge(ctx, "linuxdeepin", t.repo, result.Github.ID, "", options)
 
 	if err != nil {
 		logrus.Error(err)

@@ -4,7 +4,6 @@ import (
 	"errors"
 
 	"github.com/deepincn/pull-request-sync-services/config"
-	"github.com/sirupsen/logrus"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -13,6 +12,7 @@ type Repo struct {
 	Name  string
 	Title string
 	Body  string
+	Sha   string
 }
 
 type Head struct {
@@ -40,6 +40,10 @@ type Github struct {
 	ID int
 }
 
+/*
+	NOTE: 需要注意的是，本方案采用的是patch文件形式，所以Base中的sha256是来自api中
+	查询到的 pr 创建时的sha256,并不是最新的。
+*/
 type PullRequestModel struct {
 	gorm.Model
 	Github   Github `gorm:"embedded;embeddedPrefix:Github_"`
@@ -89,7 +93,6 @@ func (db *DataBase) Update(record *PullRequestModel) error {
 			Name: record.Repo.Name,
 		},
 		Gerrit: Gerrit{
-			ID: record.Gerrit.ID,
 			ChangeID: record.Gerrit.ChangeID,
 		},
 	}).First(&value)
@@ -98,9 +101,11 @@ func (db *DataBase) Update(record *PullRequestModel) error {
 		return errors.New("No record")
 	}
 
-	logrus.Debug(db.db.Model(&result).Updates(record))
-
-	return nil
+	return db.db.Model(&PullRequestModel{}).Where("id = ?", value.ID).Updates(PullRequestModel{
+		Gerrit: Gerrit{
+			ID: record.Gerrit.ID,
+		},
+	}).Error
 }
 
 func (db *DataBase) FindByID(repo string, id int) (*PullRequestModel, error) {
@@ -141,4 +146,23 @@ func (db *DataBase) Find(find Find) (*PullRequestModel, error) {
 	}
 
 	return &value, nil
+}
+
+func (db *DataBase) Remove(find Find) error {
+	var value PullRequestModel
+	db.db.Limit(1).Where(&PullRequestModel{
+		Github: Github{
+			ID: find.Github.ID,
+		},
+		Repo: Repo{
+			Name: find.Name,
+		},
+		Gerrit: Gerrit{
+			ID: find.Gerrit.ID,
+		},
+	}).First(&value)
+
+	//result := db.db.Delete(&value)
+
+	return nil
 }
